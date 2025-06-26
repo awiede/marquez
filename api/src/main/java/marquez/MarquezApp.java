@@ -143,6 +143,7 @@ public final class MarquezApp extends Application<MarquezConfig> {
             .jdbi(jdbi)
             .searchConfig(config.getSearchConfig())
             .tags(config.getTags())
+            .config(config)
             .build();
 
     registerResources(config, env, marquezContext);

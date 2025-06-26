@@ -53,7 +53,8 @@ public class OpenLineageResource extends BaseResource {
   private final OpenLineageDao openLineageDao;
 
   public OpenLineageResource(
-      @NonNull final ServiceFactory serviceFactory, @NonNull final OpenLineageDao openLineageDao) {
+      @NonNull final ServiceFactory serviceFactory, 
+      @NonNull final OpenLineageDao openLineageDao) {
     super(serviceFactory);
     this.openLineageDao = openLineageDao;
   }
@@ -167,6 +168,18 @@ public class OpenLineageResource extends BaseResource {
     return Response.ok(lineageService.upstream(runId, depth)).build();
   }
 
+  @Timed
+  @ResponseMetered
+  @ExceptionMetered
+  @GET
+  @Path("/config")
+  @Produces(APPLICATION_JSON)
+  public Response getConfig() {
+    // Access config through the lineage service
+    boolean jobHierarchyEnabled = serviceFactory.getLineageService().getConfig().isJobHierarchyEnabled();
+    return Response.ok(new Config(jobHierarchyEnabled)).build();
+  }
+
   @Value
   static class Events {
     @NonNull
@@ -174,5 +187,11 @@ public class OpenLineageResource extends BaseResource {
     List<LineageEvent> value;
 
     int totalCount;
+  }
+
+  @Value
+  static class Config {
+    @JsonProperty("jobHierarchyEnabled")
+    boolean jobHierarchyEnabled;
   }
 }

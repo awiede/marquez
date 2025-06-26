@@ -42,6 +42,7 @@ export const ElbowEdge = ({ edge, isMiniMap }: EdgeProps) => {
         stroke={edge.color || grey['600']}
         strokeWidth={edge.strokeWidth || 2}
         strokeLinejoin='round'
+        strokeDasharray={edge.style === 'dashed' ? '5,5' : edge.style === 'dotted' ? '2,2' : 'none'}
         points={points.map(({ x, y }) => `${x},${y}`).join(' ')}
       />
       <EdgeLabel label={edge.label} endPointY={longestEdge?.y} />

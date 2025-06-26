@@ -38,7 +38,7 @@ public interface LineageDao {
   public record JobSummary(NamespaceName namespace, JobName name, UUID version) {}
 
   public record RunSummary(RunId id, Instant start, Instant end, String status) {}
-
+ 
   public record DatasetSummary(
       NamespaceName namespace, DatasetName name, UUID version, RunId producedByRunId) {}
 
@@ -101,9 +101,15 @@ public interface LineageDao {
   @SqlQuery(
       """
     SELECT j.*, NULL as input_uuids, NULL AS output_uuids FROM jobs_view j
-    WHERE j.parent_job_uuid= :jobId
+    WHERE j.uuid= :jobId
     LIMIT 1""")
   Optional<JobData> getParentJobData(UUID jobId);
+
+  @SqlQuery(
+      """
+    SELECT j.*, NULL as input_uuids, NULL AS output_uuids FROM jobs_view j
+    WHERE j.parent_job_uuid= :parentJobId""")
+  Set<JobData> getChildJobsData(UUID parentJobId);
 
   @SqlQuery(
       """

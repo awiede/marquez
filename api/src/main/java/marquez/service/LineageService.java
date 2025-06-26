@@ -23,11 +23,13 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.validation.constraints.NotNull;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import marquez.MarquezConfig;
 import marquez.common.models.DatasetId;
 import marquez.common.models.JobId;
 import marquez.common.models.RunId;
@@ -60,11 +62,18 @@ public class LineageService extends DelegatingLineageDao {
   private final JobDao jobDao;
 
   private final RunDao runDao;
+  
+  private final MarquezConfig config;
 
-  public LineageService(LineageDao delegate, JobDao jobDao, RunDao runDao) {
+  public LineageService(LineageDao delegate, JobDao jobDao, RunDao runDao, MarquezConfig config) {
     super(delegate);
     this.jobDao = jobDao;
     this.runDao = runDao;
+    this.config = config;
+  }
+
+  public MarquezConfig getConfig() {
+    return config;
   }
 
   // TODO make input parameters easily extendable if adding more options like 'withJobFacets'
@@ -79,7 +88,30 @@ public class LineageService extends DelegatingLineageDao {
     }
     UUID job = optionalUUID.get();
     log.debug("Attempting to get lineage for job '{}'", job);
-    Set<JobData> jobData = getLineage(Collections.singleton(job), depth);
+    
+    // Collect all job data including child jobs if hierarchy is enabled
+    Set<JobData> jobData;
+    if (config.isJobHierarchyEnabled()) {
+      Set<JobData> parentJobLineage = getLineage(Collections.singleton(job), depth);
+      Set<JobData> childJobs = getChildJobsData(job);
+      
+      if (!childJobs.isEmpty()) {
+        log.debug("Found {} child jobs for parent job '{}'", childJobs.size(), job);
+        Set<UUID> childJobIds = childJobs.stream().map(JobData::getUuid).collect(Collectors.toSet());
+        Set<JobData> childJobsLineage = getLineage(childJobIds, depth);
+        
+        // Combine parent and child lineage into immutable set (deduplicated by UUID)
+        jobData = Stream.concat(parentJobLineage.stream(), childJobsLineage.stream())
+            .collect(Collectors.toMap(JobData::getUuid, Function.identity(), (existing, replacement) -> existing))
+            .values()
+            .stream()
+            .collect(Collectors.toSet());
+      } else {
+        jobData = parentJobLineage;
+      }
+    } else {
+      jobData = getLineage(Collections.singleton(job), depth);
+    }
 
     // Ensure job data is not empty, an empty set cannot be passed to LineageDao.getCurrentRuns() or
     // LineageDao.getCurrentRunsWithFacets().
@@ -115,7 +147,7 @@ public class LineageService extends DelegatingLineageDao {
       if (!datasetIds.contains(datasetData.getUuid())) {
         log.warn(
             "Found jobs {} which no longer share lineage with dataset '{}' - discarding",
-            jobData.stream().map(JobData::getId).toList(),
+            jobData.stream().map(JobData::getId).collect(toList()),
             nodeId.getValue());
         return toLineageWithOrphanDataset(nodeId.asDatasetId());
       }
@@ -139,23 +171,52 @@ public class LineageService extends DelegatingLineageDao {
 
     Map<DatasetData, Set<UUID>> dsInputToJob = new HashMap<>();
     Map<DatasetData, Set<UUID>> dsOutputToJob = new HashMap<>();
-    // build jobs
-    Map<UUID, JobData> jobDataMap = Maps.uniqueIndex(jobData, JobData::getUuid);
-    for (JobData data : jobData) {
+    
+    // Collect all job data including parent jobs (if job hierarchy is enabled)
+    Map<UUID, Set<UUID>> parentToChildren = new HashMap<>();
+    Map<UUID, UUID> childToParent = new HashMap<>();
+    Set<JobData> additionalParentJobs = new HashSet<>();
+    
+    if (config.isJobHierarchyEnabled()) {
+      for (JobData data : jobData) {
+        if (data == null) {
+          continue;
+        }
+        
+        Optional<JobData> parentJobData = getParentJobData(data.getParentJobUuid());
+        parentJobData.ifPresent(
+            parent -> {
+              log.debug(
+                  "child: {}, parent: {} with UUID: {}",
+                  parent.getId().getName(),
+                  data.getParentJobName(),
+                  data);
+              
+              // Track parent-child relationships
+              childToParent.put(data.getUuid(), parent.getUuid());
+              parentToChildren.computeIfAbsent(parent.getUuid(), k -> new HashSet<>()).add(data.getUuid());
+              
+              // Collect additional parent jobs
+              additionalParentJobs.add(parent);
+            });
+      }
+    }
+    
+    // Combine original job data with additional parent jobs (deduplicated by UUID)
+    Set<JobData> allJobData = Stream.concat(jobData.stream(), additionalParentJobs.stream())
+        .collect(Collectors.toMap(JobData::getUuid, Function.identity(), (existing, replacement) -> existing))
+        .values()
+        .stream()
+        .collect(Collectors.toSet());
+    
+    // Now create immutable map with all job data (original + parents)
+    Map<UUID, JobData> jobDataMap = Maps.uniqueIndex(allJobData, JobData::getUuid);
+    
+    for (JobData data : allJobData) {
       if (data == null) {
-        log.error("Could not find job node for {}", jobData);
+        log.error("Could not find job node for {}", allJobData);
         continue;
       }
-
-      Optional<JobData> parentJobData = getParentJobData(data.getParentJobUuid());
-      parentJobData.ifPresent(
-          parent -> {
-            log.debug(
-                "child: {}, parent: {} with UUID: {}",
-                parent.getId().getName(),
-                data.getParentJobName(),
-                data);
-          });
 
       Set<DatasetData> inputs =
           data.getInputUuids().stream()
@@ -176,13 +237,36 @@ public class LineageService extends DelegatingLineageDao {
           ds -> dsOutputToJob.computeIfAbsent(ds, e -> new HashSet<>()).add(data.getUuid()));
 
       NodeId origin = NodeId.of(new JobId(data.getNamespace(), data.getName()));
-      Node node =
-          new Node(
-              origin,
-              NodeType.JOB,
-              data,
-              buildDatasetEdge(inputs, origin),
-              buildDatasetEdge(origin, outputs));
+      
+      // Build edges including job-to-job edges (only if feature enabled)
+      Set<Edge> inEdges = new LinkedHashSet<>(buildDatasetEdge(inputs, origin));
+      Set<Edge> outEdges = new LinkedHashSet<>(buildDatasetEdge(origin, outputs));
+      
+      if (config.isJobHierarchyEnabled()) {
+        // Add job-to-job in-edges (from parent jobs)
+        if (childToParent.containsKey(data.getUuid())) {
+          UUID parentUuid = childToParent.get(data.getUuid());
+          JobData parentJob = jobDataMap.get(parentUuid);
+          if (parentJob != null) {
+            NodeId parentNodeId = NodeId.of(new JobId(parentJob.getNamespace(), parentJob.getName()));
+            inEdges.add(new Edge(parentNodeId, origin));
+          }
+        }
+        
+        // Add job-to-job out-edges (to child jobs)
+        if (parentToChildren.containsKey(data.getUuid())) {
+          Set<UUID> childUuids = parentToChildren.get(data.getUuid());
+          for (UUID childUuid : childUuids) {
+            JobData childJob = jobDataMap.get(childUuid);
+            if (childJob != null) {
+              NodeId childNodeId = NodeId.of(new JobId(childJob.getNamespace(), childJob.getName()));
+              outEdges.add(new Edge(origin, childNodeId));
+            }
+          }
+        }
+      }
+      
+      Node node = new Node(origin, NodeType.JOB, data, inEdges, outEdges);
       nodes.add(node);
     }
 

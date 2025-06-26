@@ -72,7 +72,8 @@ export const createElkNodes = (
   currentGraphNode: Nullable<string>,
   isCompact: boolean,
   isFull: boolean,
-  collapsedNodes: Nullable<string>
+  collapsedNodes: Nullable<string>,
+  showJobHierarchy: boolean = true
 ) => {
   const downstreamNodes = findDownstreamNodes(lineageGraph, currentGraphNode)
   const upstreamNodes = findUpstreamNodes(lineageGraph, currentGraphNode)
@@ -89,19 +90,47 @@ export const createElkNodes = (
     )
   })
 
+  // Helper function to determine edge type
+  const getEdgeType = (edge: { origin: string; destination: string }) => {
+    const sourceNode = filteredGraph.find((n) => n.id === edge.origin)
+    const targetNode = filteredGraph.find((n) => n.id === edge.destination)
+    
+    if (sourceNode?.type === 'JOB' && targetNode?.type === 'JOB') {
+      return 'JOB_TO_JOB'
+    } else if (sourceNode?.type === 'JOB' && targetNode?.type === 'DATASET') {
+      return 'JOB_TO_DATASET'
+    } else if (sourceNode?.type === 'DATASET' && targetNode?.type === 'JOB') {
+      return 'DATASET_TO_JOB'
+    }
+    return 'DATASET_TO_JOB' // default
+  }
+
   for (const node of filteredGraph) {
     edges.push(
       ...node.outEdges
         .filter((edge) => filteredGraph.find((n) => n.id === edge.destination))
+        .filter((edge) => {
+          const edgeType = getEdgeType(edge)
+          const isJobToJobEdge = edgeType === 'JOB_TO_JOB'
+          // Skip job-to-job edges if showJobHierarchy is false
+          return !(isJobToJobEdge && !showJobHierarchy)
+        })
         .map((edge) => {
+          const edgeType = getEdgeType(edge)
+          const isJobToJobEdge = edgeType === 'JOB_TO_JOB'
+          const isConnectedNode = downstreamNodes.includes(node) || upstreamNodes.includes(node)
+          
           return {
             id: `${edge.origin}:${edge.destination}`,
             sourceNodeId: edge.origin,
             targetNodeId: edge.destination,
-            color:
-              downstreamNodes.includes(node) || upstreamNodes.includes(node)
-                ? theme.palette.primary.main
-                : theme.palette.grey[400],
+            color: isJobToJobEdge
+              ? theme.palette.secondary.main // Different color for job-to-job edges
+              : isConnectedNode
+              ? theme.palette.primary.main
+              : theme.palette.grey[400],
+            style: (isJobToJobEdge ? 'dashed' : 'solid') as 'solid' | 'dashed' | 'dotted', // Dashed line for job hierarchy
+            strokeWidth: isJobToJobEdge ? 2 : 1,
           }
         })
     )

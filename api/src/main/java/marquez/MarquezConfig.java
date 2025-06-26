@@ -25,9 +25,15 @@ import marquez.tracing.SentryConfig;
 public class MarquezConfig extends Configuration {
   private static final boolean DEFAULT_MIGRATE_ON_STARTUP = true;
   private static final ImmutableSet<Tag> DEFAULT_TAGS = ImmutableSet.of();
+  private static final boolean DEFAULT_JOB_HIERARCHY_ENABLED = false;
 
   @Getter private boolean migrateOnStartup = DEFAULT_MIGRATE_ON_STARTUP;
   @Getter private ImmutableSet<Tag> tags = DEFAULT_TAGS;
+  
+  @Getter
+  @Setter
+  @JsonProperty("jobHierarchyEnabled")
+  private boolean jobHierarchyEnabled = DEFAULT_JOB_HIERARCHY_ENABLED;
 
   @Getter
   @JsonProperty("db")

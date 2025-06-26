@@ -101,3 +101,6 @@ tags:
     description: Personally identifiable information
   - name: SENSITIVE
     description: Contains sensitive information
+
+# Enable job hierarchy visualization feature
+jobHierarchyEnabled: true

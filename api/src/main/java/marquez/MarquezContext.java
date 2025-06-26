@@ -117,7 +117,8 @@ public final class MarquezContext {
       @NonNull final Jdbi jdbi,
       @NonNull final SearchConfig searchConfig,
       @NonNull final ImmutableSet<Tag> tags,
-      List<RunTransitionListener> runTransitionListeners) {
+      List<RunTransitionListener> runTransitionListeners,
+      @NonNull final MarquezConfig config) {
     if (runTransitionListeners == null) {
       runTransitionListeners = new ArrayList<>();
     }
@@ -153,7 +154,7 @@ public final class MarquezContext {
     this.tagService = new TagService(baseDao);
     this.tagService.init(tags);
     this.openLineageService = new OpenLineageService(baseDao, runService);
-    this.lineageService = new LineageService(lineageDao, jobDao, runDao);
+    this.lineageService = new LineageService(lineageDao, jobDao, runDao, config);
     this.columnLineageService = new ColumnLineageService(columnLineageDao, datasetFieldDao);
     this.searchService = new SearchService(searchConfig);
     this.statsService = new StatsService(statsDao);
@@ -215,6 +216,7 @@ public final class MarquezContext {
     private SearchConfig searchConfig;
     private ImmutableSet<Tag> tags;
     private List<RunTransitionListener> runTransitionListeners;
+    private MarquezConfig config;
 
     Builder() {
       this.tags = ImmutableSet.of();
@@ -246,8 +248,13 @@ public final class MarquezContext {
       return this;
     }
 
+    public Builder config(MarquezConfig config) {
+      this.config = config;
+      return this;
+    }
+
     public MarquezContext build() {
-      return new MarquezContext(jdbi, searchConfig, tags, runTransitionListeners);
+      return new MarquezContext(jdbi, searchConfig, tags, runTransitionListeners, config);
     }
   }
 }

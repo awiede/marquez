@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import marquez.MarquezConfig;
 import marquez.api.JdbiUtils;
 import marquez.common.models.DatasetId;
 import marquez.common.models.DatasetName;
@@ -87,8 +88,13 @@ public class LineageServiceTest {
   public static void setUpOnce(Jdbi jdbi) {
     LineageServiceTest.jdbi = jdbi;
     lineageDao = jdbi.onDemand(LineageDao.class);
+    
+    // Create a mock config with job hierarchy enabled for testing
+    MarquezConfig config = new MarquezConfig();
+    config.setJobHierarchyEnabled(true);
+    
     lineageService =
-        new LineageService(lineageDao, jdbi.onDemand(JobDao.class), jdbi.onDemand(RunDao.class));
+        new LineageService(lineageDao, jdbi.onDemand(JobDao.class), jdbi.onDemand(RunDao.class), config);
     openLineageDao = jdbi.onDemand(OpenLineageDao.class);
     datasetDao = jdbi.onDemand(DatasetDao.class);
     jobDao = jdbi.onDemand(JobDao.class);

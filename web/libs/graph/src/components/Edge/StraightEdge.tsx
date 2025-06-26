@@ -21,6 +21,7 @@ export const StraightEdge = ({ edge, isMiniMap }: EdgeProps) => {
         stroke={edge.color || color}
         strokeWidth={edge.strokeWidth || 2}
         strokeLinejoin='round'
+        strokeDasharray={edge.style === 'dashed' ? '5,5' : edge.style === 'dotted' ? '2,2' : 'none'}
         x1={edge.startPoint.x}
         y1={edge.startPoint.y}
         x2={edge.endPoint.x}

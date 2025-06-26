@@ -9,6 +9,8 @@ import IconButton from '@mui/material/IconButton'
 import MQTooltip from '../../components/core/tooltip/MQTooltip'
 import MqText from '../../components/core/text/MqText'
 import React from 'react'
+import LineageTagFilter from '../../components/lineage/LineageTagFilter'
+import { LineageGraph } from '../../types/api'
 
 interface ActionBarProps {
   nodeType: 'DATASET' | 'JOB'
@@ -19,6 +21,13 @@ interface ActionBarProps {
   setIsCompact: (isCompact: boolean) => void
   isFull: boolean
   setIsFull: (isFull: boolean) => void
+  showJobHierarchy?: boolean
+  setShowJobHierarchy?: (showJobHierarchy: boolean) => void
+  lineage: LineageGraph
+  selectedTags: string[]
+  onTagsChange: (tags: string[]) => void
+  tagSearchTerm: string
+  onTagSearchChange: (term: string) => void
 }
 
 export const ActionBar = ({
@@ -30,6 +39,13 @@ export const ActionBar = ({
   setIsCompact,
   isFull,
   setIsFull,
+  showJobHierarchy,
+  setShowJobHierarchy,
+  lineage,
+  selectedTags,
+  onTagsChange,
+  tagSearchTerm,
+  onTagSearchChange,
 }: ActionBarProps) => {
   const { namespace, name } = useParams()
   const navigate = useNavigate()
@@ -80,6 +96,14 @@ export const ActionBar = ({
         </Box>
       </Box>
       <Box display={'flex'} alignItems={'center'}>
+        <LineageTagFilter
+          lineage={lineage}
+          selectedTags={selectedTags}
+          onTagsChange={onTagsChange}
+          tagSearchTerm={tagSearchTerm}
+          onTagSearchChange={onTagSearchChange}
+        />
+        <Divider orientation='vertical' flexItem sx={{ mx: 2 }} />
         <MQTooltip title={'Refresh'}>
           <IconButton
             sx={{ mr: 2 }}
@@ -140,6 +164,23 @@ export const ActionBar = ({
             }
             label={<MqText font={'mono'}>Compact Nodes</MqText>}
           />
+          {nodeType === 'JOB' && showJobHierarchy !== undefined && setShowJobHierarchy && (
+            <FormControlLabel
+              control={
+                <Switch
+                  size={'small'}
+                  checked={showJobHierarchy}
+                  defaultChecked={searchParams.get('showJobHierarchy') === 'true'}
+                  onChange={(_, checked) => {
+                    setShowJobHierarchy(checked)
+                    searchParams.set('showJobHierarchy', checked.toString())
+                    setSearchParams(searchParams)
+                  }}
+                />
+              }
+              label={<MqText font={'mono'}>Job Hierarchy</MqText>}
+            />
+          )}
         </Box>
       </Box>
     </Box>
