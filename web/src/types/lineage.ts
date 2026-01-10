@@ -44,6 +44,7 @@ export interface LineageJob {
 export interface LineageEdge {
   origin: string
   destination: string
+  type?: 'JOB_TO_DATASET' | 'DATASET_TO_JOB' | 'JOB_TO_JOB'
 }
 
 export interface LineageNode {

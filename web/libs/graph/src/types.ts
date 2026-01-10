@@ -18,6 +18,7 @@ export interface Edge {
   type?: string
   color?: string
   strokeWidth?: number
+  style?: 'solid' | 'dashed' | 'dotted'
   isAnimated?: boolean
   sourceNodeId: string
   targetNodeId: string

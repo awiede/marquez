@@ -7,6 +7,7 @@ import { PositionedNode } from '../../../libs/graph'
 import { TableLineageJobNodeData } from './nodes'
 import { connect } from 'react-redux'
 import { faCog } from '@fortawesome/free-solid-svg-icons/faCog'
+import { faArrowUp } from '@fortawesome/free-solid-svg-icons/faArrowUp'
 import { formatUpdatedAt } from '../../helpers'
 import { runStateColor } from '../../helpers/nodes'
 import { theme } from '../../helpers/theme'
@@ -78,6 +79,16 @@ const TableLineageJobNode = ({ node }: TableLineageJobNodeProps & StateProps) =>
               {formatUpdatedAt(job.updatedAt)}
             </MqText>
           </Box>
+          {job.parentJobName && (
+            <Box display={'flex'} justifyContent={'space-between'}>
+              <MqText block bold sx={{ mr: 6 }}>
+                Parent Job:
+              </MqText>
+              <MqText block font={'mono'}>
+                {job.parentJobName}
+              </MqText>
+            </Box>
+          )}
           <Divider sx={{ my: 1 }} />
           <Box display={'flex'} justifyContent={'space-between'} alignItems={'center'}>
             <MqText block bold sx={{ mr: 6 }}>
@@ -154,6 +165,19 @@ const TableLineageJobNode = ({ node }: TableLineageJobNodeProps & StateProps) =>
           <text fontSize='8' fill={'white'} x={28} y={20} onClick={handleClick} cursor={'pointer'}>
             {truncateText(node.data.job.name, 16)}
           </text>
+          {node.data.job.parentJobName && (
+            <FontAwesomeIcon
+              aria-hidden={'true'}
+              title={`Parent Job: ${node.data.job.parentJobName}`}
+              icon={faArrowUp}
+              width={6}
+              height={6}
+              x={104}
+              y={2}
+              color={theme.palette.info.main}
+              onClick={handleClick}
+            />
+          )}
         </g>
       </MQTooltip>
     </g>

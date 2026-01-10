@@ -9,7 +9,7 @@ import { TableLineageDatasetNodeData } from './nodes'
 import { connect } from 'react-redux'
 
 import * as Redux from 'redux'
-import { Divider } from '@mui/material'
+import { Chip, Divider } from '@mui/material'
 import { bindActionCreators } from 'redux'
 import { datasetFacetsQualityAssertions, datasetFacetsStatus } from '../../helpers/nodes'
 import { faDatabase } from '@fortawesome/free-solid-svg-icons/faDatabase'
@@ -22,7 +22,7 @@ import IconButton from '@mui/material/IconButton'
 import MQTooltip from '../../components/core/tooltip/MQTooltip'
 import MqStatus from '../../components/core/status/MqStatus'
 import MqText from '../../components/core/text/MqText'
-import React from 'react'
+import React, { useMemo } from 'react'
 
 interface DispatchProps {
   fetchDataset: typeof fetchDataset
@@ -54,6 +54,54 @@ const TableLineageDatasetNode = ({
   const isSelected = name === node.data.dataset.name && namespace === node.data.dataset.namespace
   const [searchParams, setSearchParams] = useSearchParams()
   const isCollapsed = searchParams.get('collapsedNodes')?.split(',').includes(node.id)
+
+  // Extract tags from the dataset
+  const datasetTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    const dataset = node.data.dataset
+    
+    // Extract traditional tags
+    if (dataset.tags && Array.isArray(dataset.tags)) {
+      dataset.tags.forEach(tag => {
+        if (typeof tag === 'string') {
+          tagSet.add(tag)
+        } else if (tag && typeof tag === 'object' && 'key' in tag && typeof tag.key === 'string') {
+          tagSet.add(tag.key)
+        }
+      })
+    }
+    
+    // Extract facet tags
+    if (dataset.facets && typeof dataset.facets === 'object') {
+      const facets = dataset.facets as any
+      
+      // Check for tags facet
+      if (facets.tags && Array.isArray(facets.tags)) {
+        facets.tags.forEach((tag: any) => {
+          if (typeof tag === 'string') {
+            tagSet.add(tag)
+          } else if (tag && typeof tag === 'object' && tag.key && typeof tag.key === 'string') {
+            tagSet.add(tag.key)
+          }
+        })
+      }
+      
+      // Check for nested facet structures
+      Object.entries(facets).forEach(([facetKey, facet]) => {
+        if (facet && typeof facet === 'object' && (facet as any).tags && Array.isArray((facet as any).tags)) {
+          ;(facet as any).tags.forEach((tag: any) => {
+            if (typeof tag === 'string') {
+              tagSet.add(tag)
+            } else if (tag && typeof tag === 'object' && tag.key && typeof tag.key === 'string') {
+              tagSet.add(tag.key)
+            }
+          })
+        }
+      })
+    }
+    
+    return Array.from(tagSet).slice(0, 3) // Limit to 3 tags for display
+  }, [node.data.dataset])
 
   const handleClick = () => {
     navigate(
@@ -116,6 +164,31 @@ const TableLineageDatasetNode = ({
                   }
                   color={datasetFacetsStatus(dataset.facets)}
                 />
+              </Box>
+            </>
+          )}
+          {datasetTags.length > 0 && (
+            <>
+              <Divider sx={{ my: 1 }} />
+              <Box>
+                <MqText block bold sx={{ mb: 1 }}>
+                  Tags:
+                </MqText>
+                <Box display={'flex'} flexWrap={'wrap'} gap={0.5}>
+                  {datasetTags.map((tag, index) => (
+                    <Chip
+                      key={`${tag}-${index}`}
+                      label={tag}
+                      size="small"
+                      variant="outlined"
+                      sx={{ 
+                        fontSize: '0.7rem',
+                        height: '20px',
+                        '& .MuiChip-label': { px: 1 }
+                      }}
+                    />
+                  ))}
+                </Box>
               </Box>
             </>
           )}
@@ -215,6 +288,33 @@ const TableLineageDatasetNode = ({
           <text fontSize='8' fill={'white'} x={28} y={20} cursor={'pointer'} onClick={handleClick}>
             {truncateText(node.data.dataset.name, 15)}
           </text>
+          {datasetTags.length > 0 && (
+            <g>
+              {datasetTags.slice(0, 2).map((tag, index) => (
+                <rect
+                  key={`tag-indicator-${index}`}
+                  x={28 + index * 12}
+                  y={22}
+                  width={10}
+                  height={3}
+                  rx={1}
+                  fill={theme.palette.secondary.main}
+                  opacity={0.7}
+                />
+              ))}
+              {datasetTags.length > 2 && (
+                <text
+                  fontSize='6'
+                  fill={theme.palette.secondary.main}
+                  x={28 + 2 * 12}
+                  y={24}
+                  opacity={0.8}
+                >
+                  +{datasetTags.length - 2}
+                </text>
+              )}
+            </g>
+          )}
         </g>
       </MQTooltip>
 
